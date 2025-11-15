@@ -1,0 +1,50 @@
+# # Core PyTorch with GPU (CUDA 12.1 for GTX 1650 Ti)
+# torch
+# torchvision
+# torchaudio
+
+# # ML / DL + Transformers
+# scikit-learn
+# transformers
+# sentence-transformers
+# accelerate
+
+# # Vision Models
+# Pillow
+# timm
+
+# # Vector store + RAG tools
+# chromadb
+# faiss-gpu
+
+# # PDF handling + LangChain utilities
+# PyMuPDF
+# langchain
+# langchain-community
+
+# # Utilities
+# numpy
+# pandas
+# tqdm
+
+# # Optional: OpenAI API
+# openai
+
+#FOR MISTRAL
+
+torch
+torchvision
+torchaudio
+transformers
+sentence-transformers
+accelerate
+bitsandbytes
+chromadb
+PyMuPDF
+Pillow
+opencv-python
+scikit-learn
+pandas
+numpy
+tqdm
+llama-cpp-python
