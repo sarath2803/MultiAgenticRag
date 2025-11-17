@@ -130,3 +130,59 @@ class IntentAgent:
         path = os.path.join(out_dir, "intent_classifier.pt")
         torch.save(model.state_dict(), path)
         print(f"✅ Saved deep learning intent model to {path}")
+
+
+#fine tuned model for classification
+
+# agents/intent_agent.py
+# import os
+# import torch
+# from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
+# import json
+
+# MODEL_DIR = os.path.join("models", "intent_distilbert")  # path to your fine-tuned model
+# DEFAULT_INTENTS = ["fact", "analysis", "summary", "visual"]
+
+# class IntentAgent:
+#     def __init__(self, model_dir=MODEL_DIR):
+#         self.model_dir = model_dir
+#         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+#         # Load tokenizer & model
+#         if os.path.exists(model_dir):
+#             self.tokenizer = DistilBertTokenizerFast.from_pretrained(model_dir)
+#             self.model = DistilBertForSequenceClassification.from_pretrained(model_dir)
+#             self.model.to(self.device)
+#             self.model.eval()
+#         else:
+#             raise FileNotFoundError(f"Intent model not found at {model_dir}. Please train first.")
+
+#         # Load label mapping
+#         labels_path = os.path.join(model_dir, "labels.json")
+#         if os.path.exists(labels_path):
+#             with open(labels_path, "r") as f:
+#                 self.labels = json.load(f)
+#         else:
+#             self.labels = DEFAULT_INTENTS  # fallback
+#             print("⚠️ labels.json not found. Using default intents.")
+
+#     def predict(self, text: str) -> str:
+#         """Predict intent of a single query"""
+#         text = text.strip()
+#         if not text:
+#             return "fact"
+
+#         # Tokenize input
+#         inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True).to(self.device)
+#         with torch.no_grad():
+#             logits = self.model(**inputs).logits
+#             pred_idx = torch.argmax(logits, dim=-1).item()
+#         return self.labels[pred_idx]
+
+#     # def predict_batch(self, texts):
+#     #     """Predict intents for a batch of queries"""
+#     #     inputs = self.tokenizer(texts, return_tensors="pt", truncation=True, padding=True).to(self.device)
+#     #     with torch.no_grad():
+#     #         logits = self.model(**inputs).logits
+#     #         pred_indices = torch.argmax(logits, dim=-1).tolist()
+#     #     return [self.labels[i] for i in pred_indices]
