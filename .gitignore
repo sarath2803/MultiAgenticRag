@@ -1,4 +1,5 @@
 .venv
+.venv/
 models/mistral/mistral-7b-instruct-v0.2.Q4_K_M.gguf
 
 
@@ -28,4 +29,4 @@ logs/
 optimizer.pt
 model.safetensors
 models/intent_distilbert/
-
+git 
