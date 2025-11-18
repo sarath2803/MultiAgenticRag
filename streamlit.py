@@ -1,19 +1,16 @@
 import streamlit as st
 import os
-from dotenv import load_dotenv
 from agents.intent_agent import IntentAgent
 from agents.retrieval_agent import RetrievalAgent
 from agents.vision_agent import VisionAgent
 from agents.reasoning_agent import ReasoningAgent
 from agents.controller_agent import ControllerAgent
+from agents.memory_agent import MemoryAgent
 import time
-
-# Load environment variables
-load_dotenv()
 
 # Page configuration
 st.set_page_config(
-    page_title="Multi-Agent RAG System",
+    page_title="Vision-Enhanced Multi-Agent RAG",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -46,11 +43,20 @@ st.markdown("""
     .intent-analysis { background-color: #d1ecf1; color: #0c5460; }
     .intent-summary { background-color: #fff3cd; color: #856404; }
     .intent-visual { background-color: #f8d7da; color: #721c24; }
-    .stButton>button {
-        width: 100%;
-        background-color: #1f77b4;
-        color: white;
-        font-weight: bold;
+    .answer-box {
+        padding: 1.5rem;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        border-left: 4px solid #1f77b4;
+        margin: 1rem 0;
+    }
+    .memory-box {
+        padding: 1rem;
+        background-color: #e7f3ff;
+        border-radius: 0.5rem;
+        border-left: 4px solid #0066cc;
+        margin: 1rem 0;
+        font-size: 0.9rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -58,17 +64,23 @@ st.markdown("""
 @st.cache_resource
 def initialize_agents():
     """Initialize all agents (cached to avoid reloading on every interaction)"""
-    with st.spinner("Initializing agents..."):
-        try:
-            intent_agent = IntentAgent()
-            retrieval_agent = RetrievalAgent()
-            vision_agent = VisionAgent()
-            reasoning_agent = ReasoningAgent()
-            controller = ControllerAgent(intent_agent, retrieval_agent, vision_agent, reasoning_agent)
-            return controller, retrieval_agent, vision_agent
-        except Exception as e:
-            st.error(f"Error initializing agents: {e}")
-            st.stop()
+    try:
+        intent_agent = IntentAgent()
+        retrieval_agent = RetrievalAgent()
+        vision_agent = VisionAgent()
+        reasoning_agent = ReasoningAgent()
+        memory_agent = MemoryAgent(max_turns=12)
+        controller = ControllerAgent(
+            intent_agent, 
+            retrieval_agent, 
+            vision_agent, 
+            reasoning_agent, 
+            memory_agent
+        )
+        return controller, retrieval_agent, vision_agent, memory_agent
+    except Exception as e:
+        st.error(f"Error initializing agents: {e}")
+        st.stop()
 
 def get_intent_color(intent):
     """Get CSS class for intent badge"""
@@ -82,20 +94,27 @@ def get_intent_color(intent):
 
 def main():
     # Header
-    st.markdown('<div class="main-header">🤖 Multi-Agent RAG System</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Intent-Driven, Multimodal Retrieval-Augmented Generation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">🤖 Vision-Enhanced Multi-Agent RAG</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Intent-Aware, Multimodal Retrieval-Augmented Generation System</div>', unsafe_allow_html=True)
+    
+    # Initialize session state
+    if 'conversation_history' not in st.session_state:
+        st.session_state.conversation_history = []
+    if 'data_ingested' not in st.session_state:
+        st.session_state.data_ingested = False
     
     # Sidebar
     with st.sidebar:
-        st.header("⚙️ Configuration")
+        st.header("⚙ Configuration")
         
         # System Info
         st.subheader("System Components")
-        st.write("✅ Intent Agent (ML/DL)")
-        st.write("✅ Retrieval Agent (RAG)")
-        st.write("✅ Vision Agent (VLM)")
-        st.write("✅ Reasoning Agent (LLM)")
-        st.write("✅ Controller Agent")
+        st.write("✅ *Intent Agent* - ML/DL Classification")
+        st.write("✅ *Retrieval Agent* - RAG with ChromaDB")
+        st.write("✅ *Vision Agent* - BLIP Image Captioning")
+        st.write("✅ *Reasoning Agent* - Mistral LLM")
+        st.write("✅ *Memory Agent* - Conversation Context")
+        st.write("✅ *Controller Agent* - Orchestration")
         
         st.divider()
         
@@ -103,9 +122,10 @@ def main():
         st.subheader("📊 Data Status")
         if os.path.exists("data"):
             pdf_count = len([f for f in os.listdir("data") if f.endswith(".pdf")])
-            image_count = len([f for f in os.listdir(os.path.join("data", "images")) if f.endswith((".png", ".jpg", ".jpeg"))]) if os.path.exists(os.path.join("data", "images")) else 0
+            images_dir = os.path.join("data", "images")
+            image_count = len([f for f in os.listdir(images_dir) if f.endswith((".png", ".jpg", ".jpeg"))]) if os.path.exists(images_dir) else 0
             st.success(f"📄 PDFs: {pdf_count}")
-            st.success(f"🖼️ Images: {image_count}")
+            st.success(f"🖼 Images: {image_count}")
         else:
             st.warning("Data directory not found")
         
@@ -114,43 +134,60 @@ def main():
         # Model Info
         st.subheader("🧠 Models")
         st.info("""
-        - **Intent**: Custom ML Model
-        - **Embeddings**: Sentence Transformers
-        - **VLM**: Florence-2
-        - **LLM**: OpenAI GPT-4o-mini
+        - *Intent*: Custom PyTorch Model
+        - *Embeddings*: Sentence Transformers (all-MiniLM-L6-v2)
+        - *VLM*: BLIP Image Captioning
+        - *LLM*: Mistral-7B (llama-cpp)
+        - *Vector DB*: ChromaDB
         """)
         
         st.divider()
         
         # Intent Types
         st.subheader("🎯 Intent Types")
-        st.write("**fact**: Direct factual lookup")
-        st.write("**analysis**: Comparative reasoning")
-        st.write("**summary**: Summarize sections")
-        st.write("**visual**: Chart/image queries")
+        st.write("*fact*: Direct factual lookup")
+        st.write("*analysis*: Comparative reasoning")
+        st.write("*summary*: Document summarization")
+        st.write("*visual*: Chart/image queries")
         
         st.divider()
         
         # Settings
-        st.subheader("⚙️ Query Settings")
+        st.subheader("⚙ Query Settings")
         top_k = st.slider("Top K Results", 3, 10, 5)
-        max_tokens = st.slider("Max Tokens", 256, 1024, 512)
+        
+        st.divider()
+        
+        # Memory Management
+        st.subheader("💾 Memory")
+        if st.button("Clear Conversation History"):
+            st.session_state.conversation_history = []
+            st.rerun()
+        
+        # Show recent memory
+        if 'memory_agent' in st.session_state:
+            memory_text = st.session_state.memory_agent.get_context_text(6)
+            if memory_text:
+                with st.expander("View Recent Memory"):
+                    st.text(memory_text)
     
     # Initialize agents
-    controller, retrieval_agent, vision_agent = initialize_agents()
+    controller, retrieval_agent, vision_agent, memory_agent = initialize_agents()
+    st.session_state.memory_agent = memory_agent
     
-    # Data ingestion status
-    if 'data_ingested' not in st.session_state:
+    # Data ingestion
+    if not st.session_state.data_ingested:
         with st.spinner("Ingesting data from 'data/' directory..."):
             try:
-                # Pass vision_agent to enable image captioning during PDF ingestion
-                retrieval_agent.ingest_pdfs(data_dir="data", vision_agent=vision_agent)
+                retrieval_agent.ingest_pdfs(data_dir="data")
                 retrieval_agent.ingest_images_folder(images_dir=os.path.join("data", "images"))
                 st.session_state.data_ingested = True
                 st.success("✅ Data ingestion complete!")
                 time.sleep(1)
+                st.rerun()
             except Exception as e:
-                st.error(f"Error during data ingestion: {e}")
+                st.warning(f"Data ingestion note: {e}")
+                st.session_state.data_ingested = True  # Continue anyway
     
     # Main query interface
     st.markdown("---")
@@ -169,10 +206,19 @@ def main():
     
     # Process query
     if submit_button and query:
-        with st.spinner("Processing query..."):
+        with st.spinner("Processing query through multi-agent pipeline..."):
             try:
                 # Handle query through controller
-                res = controller.handle_query(query, top_k=top_k, max_tokens=max_tokens)
+                res = controller.handle_query(query, top_k=top_k)
+                
+                # Store in conversation history
+                st.session_state.conversation_history.append({
+                    "query": query,
+                    "intent": res.get("intent", "unknown"),
+                    "answer": res.get("answer", ""),
+                    "retrieved_count": len(res.get("retrieved", [])),
+                    "images_count": len(res.get("images", []))
+                })
                 
                 # Display results
                 st.markdown("---")
@@ -192,13 +238,13 @@ def main():
                 with col1:
                     st.markdown(f'<div class="intent-badge {get_intent_color(intent)}">{intent.upper()}</div>', unsafe_allow_html=True)
                 with col2:
-                    st.info(f"**{intent_desc}**: The query has been classified as a {intent} type question.")
+                    st.info(f"{intent_desc}: The query has been classified as a *{intent}* type question.")
                 
                 # Answer
                 st.markdown("---")
                 st.header("💡 Answer")
                 answer = res.get("answer", "No answer generated.")
-                st.markdown(f'<div style="padding: 1rem; background-color: #f0f2f6; border-radius: 0.5rem; border-left: 4px solid #1f77b4; color: #000000;">{answer}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="answer-box">{answer}</div>', unsafe_allow_html=True)
                 
                 # Retrieved Documents
                 st.markdown("---")
@@ -212,13 +258,18 @@ def main():
                         source = meta.get("source", "Unknown")
                         page = meta.get("page", "N/A")
                         document = r.get("document", "")
+                        distance = r.get("distance", 0)
                         
-                        with st.expander(f"📄 Result {i+1}: {source} (Page {page}) - {doc_type.upper()}", expanded=(i==0)):
-                            st.write(f"**Type**: {doc_type}")
-                            st.write(f"**Source**: {source}")
-                            st.write(f"**Page**: {page}")
-                            st.write("**Content**:")
-                            st.write(document[:500] + "..." if len(document) > 500 else document)
+                        with st.expander(f"📄 Result {i+1}: {source} (Page {page}) - {doc_type.upper()} [Distance: {distance:.4f}]", expanded=(i==0)):
+                            col1, col2 = st.columns([1, 2])
+                            with col1:
+                                st.write(f"*Type*: {doc_type}")
+                                st.write(f"*Source*: {source}")
+                                st.write(f"*Page*: {page}")
+                                st.write(f"*Similarity*: {1-distance:.4f}")
+                            with col2:
+                                st.write("*Content*:")
+                                st.text_area("", document, height=150, key=f"doc_{i}", disabled=True)
                 else:
                     st.warning("No documents retrieved.")
                 
@@ -226,7 +277,7 @@ def main():
                 images = res.get("images", [])
                 if images:
                     st.markdown("---")
-                    st.header("🖼️ Image Contexts")
+                    st.header("🖼 Image Contexts")
                     
                     for idx, im in enumerate(images):
                         meta = im.get("meta", {})
@@ -234,7 +285,8 @@ def main():
                         img_path = meta.get("img_path", "")
                         caption = im.get("caption", "")
                         ocr_text = im.get("ocr_text", "")
-                        tags = im.get("tags", "")
+                        
+                        st.subheader(f"Image {idx + 1}: {img_name}")
                         
                         col1, col2 = st.columns([2, 3])
                         
@@ -242,41 +294,56 @@ def main():
                             if img_path and os.path.exists(img_path):
                                 st.image(img_path, caption=img_name, use_container_width=True)
                             else:
-                                st.info(f"Image: {img_name}")
+                                st.info(f"Image path: {img_path}")
                         
                         with col2:
-                            st.subheader(f"Image {idx + 1}: {img_name}")
                             if caption:
-                                st.write("**Caption:**")
-                                st.write(caption)
+                                st.write("*Caption:*")
+                                st.info(caption)
                             if ocr_text:
-                                st.write("**OCR Text:**")
-                                st.code(ocr_text[:300] + "..." if len(ocr_text) > 300 else ocr_text)
-                            if tags:
-                                st.write("**Tags:**")
-                                st.write(tags)
+                                st.write("*OCR Text:*")
+                                st.code(ocr_text[:500] + "..." if len(ocr_text) > 500 else ocr_text, language="text")
                         
                         if idx < len(images) - 1:
                             st.divider()
                 
+                # Memory Context
+                memory_used = res.get("memory_used", "")
+                if memory_used:
+                    st.markdown("---")
+                    st.header("💾 Conversation Memory")
+                    with st.expander("View Memory Context Used"):
+                        st.markdown(f'<div class="memory-box">{memory_used}</div>', unsafe_allow_html=True)
+                
                 # Agent Pipeline Visualization
                 st.markdown("---")
                 st.header("🔄 Agent Pipeline")
-                st.info("""
-                **Query Flow:**
-                1. **Intent Agent** → Classified query as `{}`
-                2. **Retrieval Agent** → Retrieved {} document(s)
-                3. **Vision Agent** → Processed {} image(s)
-                4. **Reasoning Agent** → Generated answer using OpenAI
-                5. **Controller Agent** → Orchestrated the entire pipeline
-                """.format(intent, len(retrieved), len(images)))
+                st.info(f"""
+                *Query Processing Flow:*
+                1. *Intent Agent* → Classified query as {intent}
+                2. *Retrieval Agent* → Retrieved {len(retrieved)} document(s)
+                3. *Vision Agent* → Processed {len(images)} image(s)
+                4. *Reasoning Agent* → Generated answer using Mistral LLM
+                5. *Memory Agent* → Maintained conversation context
+                6. *Controller Agent* → Orchestrated the entire pipeline
+                """)
                 
             except Exception as e:
                 st.error(f"Error processing query: {e}")
                 st.exception(e)
     
+    # Conversation History
+    if st.session_state.conversation_history:
+        st.markdown("---")
+        st.header("📜 Conversation History")
+        for idx, entry in enumerate(reversed(st.session_state.conversation_history[-5:])):  # Show last 5
+            with st.expander(f"Query {len(st.session_state.conversation_history) - idx}: {entry['query'][:50]}...", expanded=False):
+                st.write(f"*Intent*: {entry['intent']}")
+                st.write(f"*Answer*: {entry['answer'][:200]}...")
+                st.write(f"*Retrieved*: {entry['retrieved_count']} docs, {entry['images_count']} images")
+    
     # Example queries
-    elif not submit_button:
+    if not submit_button or not query:
         st.markdown("---")
         st.subheader("💡 Example Queries")
         
@@ -299,8 +366,8 @@ def main():
     st.markdown(
         """
         <div style="text-align: center; color: #666; padding: 2rem;">
-            <p>Multi-Agent, Multimodal RAG System | Built with Streamlit</p>
-            <p>Components: Intent Classification | RAG | VLM | LLM Reasoning</p>
+            <p><strong>Vision-Enhanced Multi-Agent RAG System</strong> | Built with Streamlit</p>
+            <p>Components: Intent Classification | RAG | Vision | LLM Reasoning | Memory</p>
         </div>
         """,
         unsafe_allow_html=True
@@ -308,3 +375,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
